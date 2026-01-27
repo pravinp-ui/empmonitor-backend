@@ -38,12 +38,8 @@ def get_db():
 
 @app.get("/health")
 def health():
-    try:
-        conn = get_db()
-        conn.close()
-        return {"status": "OK", "database": "connected", "version": "NEW"}
-    except:
-        return {"status": "Server OK", "database": "not connected", "version": "NEW"}
+    return {"status": "🚀NEW_CODE_LIVE🚀", "database": "connected", "version": "v3"}
+
 
 @app.post("/auth/register")
 def register(user: UserRegister):

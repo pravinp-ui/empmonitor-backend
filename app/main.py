@@ -41,9 +41,9 @@ def health():
     try:
         conn = get_db()
         conn.close()
-        return {"status": "OK", "database": "connected", "version": "v2"}
+        return {"status": "OK", "database": "connected", "version": "NEW"}
     except:
-        return {"status": "Server OK", "database": "not connected"}
+        return {"status": "Server OK", "database": "not connected", "version": "NEW"}
 
 @app.post("/auth/register")
 def register(user: UserRegister):

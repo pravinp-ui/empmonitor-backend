@@ -41,7 +41,7 @@ def health():
     try:
         conn = get_db()
         conn.close()
-        return {"status": "OK", "database": "connected"}
+        return {"status": "OK", "database": "connected", "version": "v2"}
     except:
         return {"status": "Server OK", "database": "not connected"}
 

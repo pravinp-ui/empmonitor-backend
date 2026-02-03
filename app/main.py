@@ -31,7 +31,6 @@ def get_db():
         if conn:
             conn.close()
 
-# CREATE TABLES ON STARTUP
 def create_tables():
     with get_db() as conn:
         with conn.cursor() as cur:
@@ -47,7 +46,7 @@ def create_tables():
             conn.commit()
             print("✅ Tables created!")
 
-create_tables()  # Run once
+create_tables()
 
 class UserRegister(BaseModel):
     username: str
@@ -88,15 +87,15 @@ def register(user: UserRegister):
                 )
                 user_id = cur.fetchone()[0]
                 conn.commit()
-                
         return {"message": "✅ User created", "user_id": user_id}
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(500, f"Registration failed: {str(e)}")
 
-@app.post("/auth/login")
-def login(credentials: UserLogin):
+# ADD THIS FOR DESKTOP APP
+@app.post("/login")
+def login_v1(credentials: UserLogin):
     try:
         with get_db() as conn:
             with conn.cursor() as cur:
@@ -105,12 +104,15 @@ def login(credentials: UserLogin):
                 
                 if not result or result[1] != credentials.password:
                     raise HTTPException(401, "Invalid credentials")
-                
-        return {"message": "✅ Login successful", "user_id": result[0]}
+        return {"message": "Login successful", "user_id": result[0]}
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(500, f"Login failed: {str(e)}")
+
+@app.post("/auth/login")
+def login(credentials: UserLogin):  # Keep original too
+    return login_v1(credentials)
 
 @app.get("/dashboard")
 def dashboard(token: str = Depends(security)):

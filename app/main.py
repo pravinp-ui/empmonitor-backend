@@ -2,12 +2,12 @@ from fastapi import FastAPI, HTTPException, Depends
 from fastapi.security import HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import mysql.connector
 import os
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 app = FastAPI()
 
-# Allow frontend connections
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -18,16 +18,9 @@ app.add_middleware(
 
 security = HTTPBearer()
 
-# Database config (from Render environment variables)
-DB_CONFIG = {
-    "host": os.getenv("MYSQL_HOST"),
-    "user": os.getenv("MYSQL_USER"),
-    "password": os.getenv("MYSQL_PASSWORD"),
-    "database": os.getenv("MYSQL_DATABASE"),
-    "port": int(os.getenv("MYSQL_PORT", 3306))
-}
+# PostgreSQL config from Render
+DATABASE_URL = os.getenv("DATABASE_URL")  # Render auto-injects!
 
-# Data models
 class UserRegister(BaseModel):
     username: str
     email: str
@@ -37,17 +30,16 @@ class UserLogin(BaseModel):
     username: str
     password: str
 
-# Database connection
 def get_db():
     try:
-        conn = mysql.connector.connect(**DB_CONFIG)
+        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
         return conn
     except Exception as e:
         raise HTTPException(500, f"DB Error: {str(e)}")
 
 @app.get("/")
 def root():
-    return {"message": "🚀 Employee Monitor API LIVE 🚀"}
+    return {"message": "🚀 Employee Monitor API LIVE 🚀 PostgreSQL!"}
 
 @app.get("/health")
 def health():
@@ -57,7 +49,7 @@ def health():
         cursor.execute("SELECT 1")
         cursor.close()
         conn.close()
-        return {"status": "OK", "database": "✅ CONNECTED"}
+        return {"status": "OK", "database": "✅ PostgreSQL CONNECTED!"}
     except:
         return {"status": "Server OK", "database": "❌ Not connected"}
 
@@ -67,21 +59,18 @@ def register(user: UserRegister):
         conn = get_db()
         cursor = conn.cursor()
         
-        # Check if user exists
         cursor.execute("SELECT id FROM users WHERE username = %s OR email = %s", 
                       (user.username, user.email))
         if cursor.fetchone():
-            cursor.close()
-            conn.close()
-            raise HTTPException(400, "User already exists")
+            raise HTTPException(400, "User exists")
         
-        # Insert user
         cursor.execute(
             "INSERT INTO users (username, email, password, created_at) VALUES (%s, %s, %s, NOW())",
             (user.username, user.email, user.password)
         )
         conn.commit()
-        user_id = cursor.lastrowid
+        cursor.execute("SELECT id FROM users WHERE username = %s", (user.username,))
+        user_id = cursor.fetchone()[0]
         
         cursor.close()
         conn.close()
@@ -96,15 +85,12 @@ def login(credentials: UserLogin):
     try:
         conn = get_db()
         cursor = conn.cursor()
-        cursor.execute(
-            "SELECT id, username, password FROM users WHERE username = %s",
-            (credentials.username,)
-        )
+        cursor.execute("SELECT id, password FROM users WHERE username = %s", (credentials.username,))
         result = cursor.fetchone()
         cursor.close()
         conn.close()
         
-        if not result or result[2] != credentials.password:
+        if not result or result[1] != credentials.password:
             raise HTTPException(401, "Invalid credentials")
         
         return {"message": "✅ Login successful", "user_id": result[0]}

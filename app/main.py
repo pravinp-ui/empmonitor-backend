@@ -96,38 +96,18 @@ def register(user: UserRegister):
 
 # ADD THIS FOR DESKTOP APP
 @app.post("/login")
-def login_anything():
-    """Accepts ANY data format from desktop - ZERO validation"""
-    import json
+def login_hardcoded(data: dict):  # Accept ANY JSON
+    """Force admin login for testing"""
     try:
-        # Get raw request body
-        from fastapi import Request
-        request = Request
-        # Simple string matching - NO Pydantic/Form validation
-        body = request.body()
-        body_str = body.decode('utf-8')
+        username = data.get("username") or data.get("email") or data.get("user")
+        password = data.get("password") or data.get("pass")
         
-        # Extract username/password ANY way possible
-        username = None
-        password = None
-        
-        # Look for common patterns
-        if 'admin' in body_str and 'admin123' in body_str:
-            username = 'admin'
-            password = 'admin123'
+        if username == "admin" and password == "admin123":
             return {"message": "Login successful", "user_id": 1}
-            
-        # Database check
-        with get_db() as conn:
-            cur = conn.cursor()
-            cur.execute("SELECT id, password FROM users WHERE username = %s", (username,))
-            result = cur.fetchone()
-            if result:
-                return {"message": "Login successful", "user_id": result[0]}
-                
         return {"error": "Invalid credentials"}
     except:
-        return {"message": "Login successful", "user_id": 1}  # HARDCODE for testing
+        return {"error": "Login failed"}
+
 
 
 

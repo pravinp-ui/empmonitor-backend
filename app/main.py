@@ -96,42 +96,22 @@ def register(user: UserRegister):
 
 # ADD THIS FOR DESKTOP APP
 @app.post("/login")
-async def login_universal(request: Request):  # Accept ANYTHING
-    """Accepts JSON, Form, or raw data from desktop"""
+def login(username: str = Form(None), password: str = Form(None)):
+    """Super simple - works with desktop"""
+    if not username or not password:
+        return {"error": "Missing credentials"}
+        
     try:
-        # Try JSON first
-        body = await request.json()
-        username = body.get("username")
-        password = body.get("password")
-        
-        # Try Form data
-        if not username:
-            form = await request.form()
-            username = form.get("username")
-            password = form.get("password")
-        
-        # Try query params (fallback)
-        if not username:
-            username = request.query_params.get("username")
-            password = request.query_params.get("password")
-            
-        if not username or not password:
-            raise HTTPException(400, "Missing username or password")
-            
         with get_db() as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT id, password FROM users WHERE username = %s", (username,))
                 result = cur.fetchone()
-                
-                if not result or result[1] != password:
-                    raise HTTPException(401, "Invalid credentials")
-                    
-        return {"message": "Login successful", "user_id": result[0], "username": username}
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(500, f"Login failed: {str(e)}")
+                if result and result[1] == password:
+                    return {"message": "Login successful", "user_id": result[0]}
+                return {"error": "Invalid credentials"}
+    except:
+        return {"error": "Login failed"}
+
 
 
 @app.post("/auth/login")

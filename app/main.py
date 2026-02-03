@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, form
 from fastapi.security import HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -95,14 +95,14 @@ def register(user: UserRegister):
 
 # ADD THIS FOR DESKTOP APP
 @app.post("/login")
-def login_v1(credentials: UserLogin):
+def login_v1(username: str = Form(...), password: str = Form(...)):  # Form data support
     try:
         with get_db() as conn:
             with conn.cursor() as cur:
-                cur.execute("SELECT id, password FROM users WHERE username = %s", (credentials.username,))
+                cur.execute("SELECT id, password FROM users WHERE username = %s", (username,))
                 result = cur.fetchone()
                 
-                if not result or result[1] != credentials.password:
+                if not result or result[1] != password:
                     raise HTTPException(401, "Invalid credentials")
         return {"message": "Login successful", "user_id": result[0]}
     except HTTPException:

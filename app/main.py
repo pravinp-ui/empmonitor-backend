@@ -44,13 +44,18 @@ def root():
 
 @app.get("/health")
 def health():
+    db_status = "❌ DATABASE_URL MISSING!" if not DATABASE_URL else "✅ Found"
     try:
+        if not DATABASE_URL:
+            return {"status": "Server OK", "database": db_status, "DATABASE_URL": "NULL"}
+        
         with get_db() as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT 1")
-        return {"status": "OK", "database": "✅ PostgreSQL psycopg3 CONNECTED!"}
+        return {"status": "OK", "database": "✅ PostgreSQL psycopg3 CONNECTED!", "DATABASE_URL": "OK"}
     except Exception as e:
-        return {"status": "Server OK", "database": f"❌ Error: {str(e)}"}
+        return {"status": "Server OK", "database": f"❌ Error: {str(e)}", "DATABASE_URL": db_status}
+
 
 @app.post("/auth/register")
 def register(user: UserRegister):

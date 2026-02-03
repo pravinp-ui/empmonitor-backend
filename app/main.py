@@ -96,64 +96,56 @@ def register(user: UserRegister):
 
 # ADD THIS FOR DESKTOP APP
 @app.post("/login")
-async def login_debug(request: Request):
-    """DEBUG: Shows EXACT data desktop sends"""
+async def login_simple(request: Request):
+    """Accepts ANY desktop format - NO validation errors"""
     try:
-        # Log EVERYTHING desktop sends
-        print(f"🔍 RAW HEADERS: {dict(request.headers)}")
-        print(f"🔍 RAW BODY: {await request.body()}")
-        
-        # Try ALL possible formats
+        # Get raw body
         body_bytes = await request.body()
-        body_text = body_bytes.decode('utf-8') if body_bytes else ""
-        print(f"🔍 BODY TEXT: {body_text}")
-        
-        # Method 1: JSON
-        try:
-            body_json = await request.json()
-            username = body_json.get("username", body_json.get("user"))
-            password = body_json.get("password", body_json.get("pass"))
-            print(f"🔍 JSON: username={username}, password={password}")
-        except:
-            username = password = None
+        if not body_bytes:
+            return {"error": "Empty request"}
             
-        # Method 2: Form
+        body_text = body_bytes.decode('utf-8')
+        
+        # Extract username/password (ANY format)
+        username = None
+        password = None
+        
+        # Method 1: JSON {"username": "..."}
         try:
-            form = await request.form()
-            username = form.get("username", form.get("user"))
-            password = form.get("password", form.get("pass"))
-            print(f"🔍 FORM: username={username}, password={password}")
+            import json
+            data = json.loads(body_text)
+            username = data.get("username") or data.get("user")
+            password = data.get("password") or data.get("pass")
         except:
             pass
             
-        # Method 3: Raw parsing
-        if not username and body_text:
+        # Method 2: Form user=admin&pass=123  
+        if not username:
             if "username=" in body_text:
-                username = body_text.split("username=")[1].split("&")[0]
+                username = body_text.split("username=")[1].split("&")[0].split("=")[1]
+            if "user=" in body_text:
+                username = body_text.split("user=")[1].split("&")[0].split("=")[1]
             if "password=" in body_text:
                 password = body_text.split("password=")[1]
-            print(f"🔍 RAW: username={username}, password={password}")
-        
-        print(f"🔍 FINAL: username='{username}', password='{password}'")
+            if "pass=" in body_text:
+                password = body_text.split("pass=")[1]
         
         if not username or not password:
-            return {"error": "Missing credentials", "debug": {"username": username, "password": password, "body": body_text[:200]}}
-        
-        # Login logic
+            return {"debug": "Could not parse", "body": body_text[:100]}
+            
+        # Database check
         with get_db() as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT id, password FROM users WHERE username = %s", (username,))
                 result = cur.fetchone()
                 
-                if not result or result[1] != password:
-                    return {"error": "Invalid credentials", "debug": {"username": username}}
+                if result and result[1] == password:
+                    return {"message": "Login successful", "user_id": result[0]}
+                else:
+                    return {"error": "Invalid credentials"}
                     
-        return {"message": "Login successful", "user_id": result[0], "username": username}
-        
     except Exception as e:
-        return {"error": str(e), "debug": "Exception occurred"}
-
-
+        return {"error": str(e)}
 
 @app.post("/auth/login")
 def login(credentials: UserLogin):  # Keep original too

@@ -4,7 +4,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import os
 import psycopg2
-from psycopg2.extras import RealDictCursor
 
 app = FastAPI()
 
@@ -18,8 +17,8 @@ app.add_middleware(
 
 security = HTTPBearer()
 
-# PostgreSQL config from Render
-DATABASE_URL = os.getenv("DATABASE_URL")  # Render auto-injects!
+# Render PostgreSQL (auto-detected!)
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 class UserRegister(BaseModel):
     username: str
@@ -31,11 +30,8 @@ class UserLogin(BaseModel):
     password: str
 
 def get_db():
-    try:
-        conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-        return conn
-    except Exception as e:
-        raise HTTPException(500, f"DB Error: {str(e)}")
+    conn = psycopg2.connect(DATABASE_URL, sslmode='require')
+    return conn
 
 @app.get("/")
 def root():
@@ -50,15 +46,14 @@ def health():
         cursor.close()
         conn.close()
         return {"status": "OK", "database": "✅ PostgreSQL CONNECTED!"}
-    except:
-        return {"status": "Server OK", "database": "❌ Not connected"}
+    except Exception as e:
+        return {"status": "Server OK", "database": f"❌ Error: {str(e)}"}
 
 @app.post("/auth/register")
 def register(user: UserRegister):
     try:
         conn = get_db()
         cursor = conn.cursor()
-        
         cursor.execute("SELECT id FROM users WHERE username = %s OR email = %s", 
                       (user.username, user.email))
         if cursor.fetchone():
@@ -69,8 +64,7 @@ def register(user: UserRegister):
             (user.username, user.email, user.password)
         )
         conn.commit()
-        cursor.execute("SELECT id FROM users WHERE username = %s", (user.username,))
-        user_id = cursor.fetchone()[0]
+        user_id = cursor.lastrowid
         
         cursor.close()
         conn.close()
@@ -101,4 +95,4 @@ def login(credentials: UserLogin):
 
 @app.get("/dashboard")
 def dashboard(token: str = Depends(security)):
-    return {"message": "✅ Dashboard data", "user_authenticated": True}
+    return {"message": "✅ Dashboard PostgreSQL!", "user_authenticated": True}

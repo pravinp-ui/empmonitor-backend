@@ -21,6 +21,8 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 @contextmanager
 def get_db():
+    if not DATABASE_URL:
+        raise Exception("DATABASE_URL environment variable is missing!")
     conn = None
     try:
         conn = psycopg.connect(DATABASE_URL, sslmode="require")
@@ -28,6 +30,24 @@ def get_db():
     finally:
         if conn:
             conn.close()
+
+# CREATE TABLES ON STARTUP
+def create_tables():
+    with get_db() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id SERIAL PRIMARY KEY,
+                    username VARCHAR(50) UNIQUE NOT NULL,
+                    email VARCHAR(100) UNIQUE NOT NULL,
+                    password VARCHAR(255) NOT NULL,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """)
+            conn.commit()
+            print("✅ Tables created!")
+
+create_tables()  # Run once
 
 class UserRegister(BaseModel):
     username: str
@@ -44,18 +64,13 @@ def root():
 
 @app.get("/health")
 def health():
-    db_status = "❌ DATABASE_URL MISSING!" if not DATABASE_URL else "✅ Found"
     try:
-        if not DATABASE_URL:
-            return {"status": "Server OK", "database": db_status, "DATABASE_URL": "NULL"}
-        
         with get_db() as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT 1")
-        return {"status": "OK", "database": "✅ PostgreSQL psycopg3 CONNECTED!", "DATABASE_URL": "OK"}
+        return {"status": "OK", "database": "✅ PostgreSQL psycopg3 CONNECTED!"}
     except Exception as e:
-        return {"status": "Server OK", "database": f"❌ Error: {str(e)}", "DATABASE_URL": db_status}
-
+        return {"status": "Server OK", "database": f"❌ Error: {str(e)}"}
 
 @app.post("/auth/register")
 def register(user: UserRegister):

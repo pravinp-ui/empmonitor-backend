@@ -95,7 +95,8 @@ def register(user: UserRegister):
 
 # ADD THIS FOR DESKTOP APP
 @app.post("/login")
-def login_v1(username: str = Form(...), password: str = Form(...)):  # Form data support
+#def login_v1(username: str = Form(...), password: str = Form(...)):  # Form data support
+async def login_v1(username: str = Form(...), password: str = Form(...)):
     try:
         with get_db() as conn:
             with conn.cursor() as cur:

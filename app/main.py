@@ -113,7 +113,6 @@ def login(username: str = Form(None), password: str = Form(None)):
         return {"error": "Login failed"}
 
 
-
 @app.post("/auth/login")
 def login(credentials: UserLogin):  # Keep original too
     return login_v1(credentials)

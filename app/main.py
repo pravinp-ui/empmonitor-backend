@@ -1,3 +1,4 @@
+from fastapi import Request  # Add Request
 from fastapi import FastAPI, HTTPException, Depends, Form
 from fastapi.security import HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
@@ -95,9 +96,28 @@ def register(user: UserRegister):
 
 # ADD THIS FOR DESKTOP APP
 @app.post("/login")
-#def login_v1(username: str = Form(...), password: str = Form(...)):  # Form data support
-async def login_v1(username: str = Form(...), password: str = Form(...)):
+async def login_universal(request: Request):  # Accept ANYTHING
+    """Accepts JSON, Form, or raw data from desktop"""
     try:
+        # Try JSON first
+        body = await request.json()
+        username = body.get("username")
+        password = body.get("password")
+        
+        # Try Form data
+        if not username:
+            form = await request.form()
+            username = form.get("username")
+            password = form.get("password")
+        
+        # Try query params (fallback)
+        if not username:
+            username = request.query_params.get("username")
+            password = request.query_params.get("password")
+            
+        if not username or not password:
+            raise HTTPException(400, "Missing username or password")
+            
         with get_db() as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT id, password FROM users WHERE username = %s", (username,))
@@ -105,11 +125,14 @@ async def login_v1(username: str = Form(...), password: str = Form(...)):
                 
                 if not result or result[1] != password:
                     raise HTTPException(401, "Invalid credentials")
-        return {"message": "Login successful", "user_id": result[0]}
+                    
+        return {"message": "Login successful", "user_id": result[0], "username": username}
+        
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(500, f"Login failed: {str(e)}")
+
 
 @app.post("/auth/login")
 def login(credentials: UserLogin):  # Keep original too

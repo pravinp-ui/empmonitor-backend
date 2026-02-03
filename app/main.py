@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends, form
+from fastapi import FastAPI, HTTPException, Depends, Form
 from fastapi.security import HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel

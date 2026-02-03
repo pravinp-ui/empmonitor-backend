@@ -96,20 +96,35 @@ def register(user: UserRegister):
 
 # ADD THIS FOR DESKTOP APP
 @app.post("/login")
-def login_hardcoded(data: dict):  # Accept ANY JSON
-    """Force admin login for testing"""
+def login_universal(data: dict = {}):  # Raw dict - no validation
+    """Works with username OR email"""
+    username = data.get('username') or data.get('user')
+    email = data.get('email') or data.get('user')
+    password = data.get('password') or data.get('pass')
+    
+    login_field = username or email
+    
+    if not login_field or not password:
+        return {"error": "Missing login/password"}
+    
     try:
-        username = data.get("username") or data.get("email") or data.get("user")
-        password = data.get("password") or data.get("pass")
-        
-        if username == "admin" and password == "admin123":
-            return {"message": "Login successful", "user_id": 1}
-        return {"error": "Invalid credentials"}
+        with get_db() as conn:
+            cur = conn.cursor()
+            # Try username
+            cur.execute("SELECT id FROM users WHERE username = %s AND password = %s", (login_field, password))
+            result = cur.fetchone()
+            if result:
+                return {"message": "Login successful", "user_id": result[0]}
+            
+            # Try email
+            cur.execute("SELECT id FROM users WHERE email = %s AND password = %s", (login_field, password))
+            result = cur.fetchone()
+            if result:
+                return {"message": "Login successful", "user_id": result[0]}
+                
+            return {"error": "Invalid credentials"}
     except:
-        return {"error": "Login failed"}
-
-
-
+        return {"error": "Server error"}
 
 @app.post("/auth/login")
 def login(credentials: UserLogin):  # Keep original too

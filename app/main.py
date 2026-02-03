@@ -1,5 +1,5 @@
 from fastapi import Request  # Add Request
-from fastapi import FastAPI, HTTPException, Depends, Form
+from fastapi import FastAPI, HTTPException, Depends, Form, Body
 from fastapi.security import HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -96,11 +96,21 @@ def register(user: UserRegister):
 
 # ADD THIS FOR DESKTOP APP
 @app.post("/login")
-def login(username: str = Form(None), password: str = Form(None)):
-    """Super simple - works with desktop"""
+async def login_hybrid(
+    # Try JSON first
+    username_json: str = Body(None),
+    password_json: str = Body(None),
+    # Fallback to Form
+    username_form: str = Form(None),
+    password_form: str = Form(None)
+):
+    # Use JSON if available, else Form
+    username = username_json or username_form
+    password = password_json or password_form
+    
     if not username or not password:
         return {"error": "Missing credentials"}
-        
+    
     try:
         with get_db() as conn:
             with conn.cursor() as cur:

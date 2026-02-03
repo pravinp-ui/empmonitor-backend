@@ -3,7 +3,8 @@ from fastapi.security import HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import os
-import psycopg2
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
 
 app = FastAPI()
 
@@ -20,6 +21,12 @@ security = HTTPBearer()
 # Render PostgreSQL (auto-detected!)
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+if not DATABASE_URL:
+    DATABASE_URL = "postgresql://localhost"  # Fallback for local testing
+
+engine = create_engine(DATABASE_URL, pool_pre_ping=True)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
 class UserRegister(BaseModel):
     username: str
     email: str
@@ -30,44 +37,48 @@ class UserLogin(BaseModel):
     password: str
 
 def get_db():
-    conn = psycopg2.connect(DATABASE_URL, sslmode='require')
-    return conn
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
 
 @app.get("/")
 def root():
-    return {"message": "🚀 Employee Monitor API LIVE 🚀 PostgreSQL!"}
+    return {"message": "🚀 Employee Monitor API LIVE 🚀 PostgreSQL v2!"}
 
 @app.get("/health")
 def health():
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1")
-        cursor.close()
-        conn.close()
-        return {"status": "OK", "database": "✅ PostgreSQL CONNECTED!"}
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+        return {"status": "OK", "database": "✅ PostgreSQL SQLAlchemy CONNECTED!"}
     except Exception as e:
         return {"status": "Server OK", "database": f"❌ Error: {str(e)}"}
 
 @app.post("/auth/register")
 def register(user: UserRegister):
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT id FROM users WHERE username = %s OR email = %s", 
-                      (user.username, user.email))
-        if cursor.fetchone():
-            raise HTTPException(400, "User exists")
-        
-        cursor.execute(
-            "INSERT INTO users (username, email, password, created_at) VALUES (%s, %s, %s, NOW())",
-            (user.username, user.email, user.password)
-        )
-        conn.commit()
-        user_id = cursor.lastrowid
-        
-        cursor.close()
-        conn.close()
+        with engine.connect() as connection:
+            result = connection.execute(
+                text("SELECT id FROM users WHERE username = :username OR email = :email"),
+                {"username": user.username, "email": user.email}
+            )
+            if result.fetchone():
+                raise HTTPException(400, "User exists")
+            
+            connection.execute(
+                text("INSERT INTO users (username, email, password, created_at) VALUES (:username, :email, :password, NOW())"),
+                {"username": user.username, "email": user.email, "password": user.password}
+            )
+            connection.commit()
+            
+            result = connection.execute(
+                text("SELECT id FROM users WHERE username = :username"),
+                {"username": user.username}
+            )
+            user_id = result.fetchone()[0]
+            
         return {"message": "✅ User created", "user_id": user_id}
     except HTTPException:
         raise
@@ -77,17 +88,17 @@ def register(user: UserRegister):
 @app.post("/auth/login")
 def login(credentials: UserLogin):
     try:
-        conn = get_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, password FROM users WHERE username = %s", (credentials.username,))
-        result = cursor.fetchone()
-        cursor.close()
-        conn.close()
-        
-        if not result or result[1] != credentials.password:
-            raise HTTPException(401, "Invalid credentials")
-        
-        return {"message": "✅ Login successful", "user_id": result[0]}
+        with engine.connect() as connection:
+            result = connection.execute(
+                text("SELECT id, password FROM users WHERE username = :username"),
+                {"username": credentials.username}
+            )
+            row = result.fetchone()
+            
+            if not row or row[1] != credentials.password:
+                raise HTTPException(401, "Invalid credentials")
+            
+        return {"message": "✅ Login successful", "user_id": row[0]}
     except HTTPException:
         raise
     except Exception as e:
@@ -95,4 +106,4 @@ def login(credentials: UserLogin):
 
 @app.get("/dashboard")
 def dashboard(token: str = Depends(security)):
-    return {"message": "✅ Dashboard PostgreSQL!", "user_authenticated": True}
+    return {"message": "✅ Dashboard PostgreSQL SQLAlchemy!", "user_authenticated": True}
